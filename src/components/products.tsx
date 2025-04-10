@@ -180,7 +180,7 @@ export default function ProductsPage({
   };
 
   return (
-    <div className="flex-1 p-6">
+    <div className="flex-1 p-6 min-h-[84vh]">
       <div className="mb-4">
         <h1 className="text-2xl text-header font-semibold mb-2">Product</h1>
         <Breadcrumb>
