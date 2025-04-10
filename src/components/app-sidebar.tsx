@@ -33,7 +33,10 @@ const data = {
 };
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
-  const { products } = useProductStore();
+  const { products, fetchProducts } = useProductStore();
+  React.useEffect(() => {
+    fetchProducts();
+  }, [fetchProducts]);
 
   const navMain = [
     {
@@ -46,13 +49,13 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       title: "Product",
       url: "/products",
       icon: MdOutlineStorefront,
-      count: products.length, 
+      count: products.length,
     },
     {
       title: "Transaction",
       url: "/dashboard/transactions",
       icon: FaRegFileAlt,
-      count: 441
+      count: 441,
     },
     {
       title: "Customer",
@@ -73,7 +76,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       </SidebarHeader>
       <SidebarContent>
         <NavMain items={navMain} />
-      
       </SidebarContent>
 
       <SidebarRail />
