@@ -33,7 +33,6 @@ interface ProductState {
   error: string | null;
 
   filters: ProductFilters;
-
   pagination: Pagination;
 
   fetchProducts: () => Promise<void>;
@@ -55,9 +54,6 @@ interface ProductState {
 
   setCurrentPage: (page: number) => void;
   setItemsPerPage: (items: number) => void;
-
-  getFilteredProducts: () => Product[];
-  getCurrentPageProducts: () => Product[];
 }
 
 const useProductStore = create<ProductState>((set, get) => ({
@@ -86,7 +82,14 @@ const useProductStore = create<ProductState>((set, get) => ({
     set({ isLoading: true, error: null });
 
     try {
-      const response = await axios.get("/api/products");
+      const { filters, pagination } = get();
+
+      const response = await axios.post("/api/products", {
+        ...filters,
+        page: pagination.currentPage,
+        itemsPerPage: pagination.itemsPerPage,
+      });
+
       const data = response.data;
 
       if (!data.success) {
@@ -95,13 +98,7 @@ const useProductStore = create<ProductState>((set, get) => ({
 
       set({
         products: data.products,
-        pagination: {
-          ...get().pagination,
-          totalItems: data.products.length,
-          totalPages: Math.ceil(
-            data.products.length / get().pagination.itemsPerPage
-          ),
-        },
+        pagination: data.pagination,
         isLoading: false,
       });
     } catch (error) {
@@ -155,28 +152,9 @@ const useProductStore = create<ProductState>((set, get) => ({
       const response = await axios.delete(`/api/products/delete-product/${id}`);
       const data = response.data;
 
-      set({
-        products: get().products.filter((product) => product._id !== id),
-        isLoading: false,
-      });
+      await get().fetchProducts();
 
-      const totalItems = get().products.length;
-      set({
-        pagination: {
-          ...get().pagination,
-          totalItems,
-          totalPages: Math.ceil(totalItems / get().pagination.itemsPerPage),
-          currentPage:
-            get().pagination.currentPage >
-            Math.ceil(totalItems / get().pagination.itemsPerPage)
-              ? Math.max(
-                  1,
-                  Math.ceil(totalItems / get().pagination.itemsPerPage)
-                )
-              : get().pagination.currentPage,
-        },
-      });
-
+      set({ isLoading: false });
       return true;
     } catch (error) {
       console.error("Error deleting product:", error);
@@ -261,118 +239,13 @@ const useProductStore = create<ProductState>((set, get) => ({
     })),
 
   setItemsPerPage: (items: number) =>
-    set((state) => {
-      const totalPages = Math.ceil(state.pagination.totalItems / items);
-      return {
-        pagination: {
-          ...state.pagination,
-          itemsPerPage: items,
-          totalPages,
-          currentPage: Math.min(state.pagination.currentPage, totalPages || 1),
-        },
-      };
-    }),
-
-  getFilteredProducts: () => {
-    const { products, filters } = get();
-
-    return products
-      .filter((product) => {
-        if (
-          filters.searchQuery &&
-          !product.name
-            .toLowerCase()
-            .includes(filters.searchQuery.toLowerCase())
-        ) {
-          return false;
-        }
-
-        if (
-          filters.selectedCategories.length > 0 &&
-          product.category &&
-          !filters.selectedCategories.includes(product.category)
-        ) {
-          return false;
-        }
-
-        if (filters.startDate) {
-          const productDate = new Date(product.createdAt);
-          const startOfDay = new Date(filters.startDate);
-          startOfDay.setHours(0, 0, 0, 0);
-
-          if (productDate < startOfDay) {
-            return false;
-          }
-        }
-
-        if (filters.endDate) {
-          const productDate = new Date(product.createdAt);
-          const endOfDay = new Date(filters.endDate);
-          endOfDay.setHours(23, 59, 59, 999);
-
-          if (productDate > endOfDay) {
-            return false;
-          }
-        }
-
-        if (filters.minPrice && !isNaN(Number.parseFloat(filters.minPrice))) {
-          if (product.price < Number.parseFloat(filters.minPrice)) {
-            return false;
-          }
-        }
-
-        if (filters.maxPrice && !isNaN(Number.parseFloat(filters.maxPrice))) {
-          if (product.price > Number.parseFloat(filters.maxPrice)) {
-            return false;
-          }
-        }
-
-        return true;
-      })
-      .sort((a, b) => {
-        if (filters.sortOrder === "price-low-high") {
-          return a.price - b.price;
-        } else if (filters.sortOrder === "price-high-low") {
-          return b.price - a.price;
-        } else if (filters.sortOrder === "oldest") {
-          return (
-            new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-          );
-        } else {
-          return (
-            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-          );
-        }
-      });
-  },
-
-  getCurrentPageProducts: () => {
-    const { pagination } = get();
-    const filteredProducts = get().getFilteredProducts();
-
-    const totalItems = filteredProducts.length;
-    const totalPages = Math.ceil(totalItems / pagination.itemsPerPage);
-
-    if (
-      totalItems !== pagination.totalItems ||
-      totalPages !== pagination.totalPages
-    ) {
-      set({
-        pagination: {
-          ...pagination,
-          totalItems,
-          totalPages,
-          currentPage: Math.min(pagination.currentPage, totalPages || 1),
-        },
-      });
-    }
-
-    const indexOfFirstItem =
-      (pagination.currentPage - 1) * pagination.itemsPerPage;
-    const indexOfLastItem = indexOfFirstItem + pagination.itemsPerPage;
-
-    return filteredProducts.slice(indexOfFirstItem, indexOfLastItem);
-  },
+    set((state) => ({
+      pagination: {
+        ...state.pagination,
+        itemsPerPage: items,
+        currentPage: 1,
+      },
+    })),
 }));
 
 export default useProductStore;
